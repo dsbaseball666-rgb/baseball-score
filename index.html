@@ -172,7 +172,7 @@ td.cell{cursor:default}
 <div id="bootMsg" style="padding:30px;font-size:18px;color:#555">載入中…（若一直停在這裡，請截圖給開發者）</div>
 <script>
 /* 啟動錯誤顯示：用最舊的語法寫，確保任何 iPad 都能把錯誤顯示出來 */
-var APP_VER='1.3.1';
+var APP_VER='1.4';
 window.onerror=function(msg,src,line,col){
   var d=document.getElementById('bootErr');
   if(!d){d=document.createElement('div');d.id='bootErr';d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:999;background:#fff3f3;border-top:3px solid #d0202b;padding:12px 16px;font-size:15px;color:#900;max-height:40vh;overflow:auto';document.body.appendChild(d);}
@@ -1034,9 +1034,12 @@ function renderInfo(){
   h+=`</div><p><button class="mbtn" onclick="syncPitchers()">由打序中的投手帶入先發投手</button>　<button class="mbtn on" onclick="view='sheet';render()">開始紀錄 →</button></p></div>`;
   $('#app').innerHTML=h;
 }
-/* ---------------- 球員名單庫（只存在這台 iPad，不會上傳） ---------------- */
+/* ---------------- 球員名單庫（存在這台 iPad） ---------------- */
 const RKEY='waseda-rosters-v1';
 function getRosters(){try{const a=JSON.parse(localStorage.getItem(RKEY)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+// 內建球隊名單：第一次開啟（或內建名單更新版號後）自動加入名單庫；使用者刪掉後不會再自動加回
+const BUILTIN_ROSTER={ver:1,name:'東勢國中',players:'李允翔 唐碩 張元紀 徐子淳 劉玟德 林杰鴻 徐正浩 劉家翰 江柏丞 鄭亦洺 周柏竣 何宇恩 余浚瑋 何宇鴻 蔡尚旆 劉安喆 陳宥嘉 簡浡晅 范書維 陳睿紘 葉湋鈞 周柏文 徐詠智 賴柏勛 潘子裕 李亞各 陳定謙 林樂 詹宇恩 曾昱翔'.split(' ').map(n=>({no:'',name:n}))};
+try{const k='waseda-builtin-roster';if(+(localStorage.getItem(k)||0)<BUILTIN_ROSTER.ver){const a=getRosters();const i=a.findIndex(r=>r.name===BUILTIN_ROSTER.name);const r={name:BUILTIN_ROSTER.name,players:BUILTIN_ROSTER.players};if(i>=0)a[i]=r;else a.unshift(r);localStorage.setItem(RKEY,JSON.stringify(a));localStorage.setItem(k,String(BUILTIN_ROSTER.ver));}}catch(e){}
 function setRosters(a){try{localStorage.setItem(RKEY,JSON.stringify(a));}catch(e){alert('名單無法儲存：'+e.message);}}
 function parseRosterText(txt,defName){
   txt=String(txt).replace(/^﻿/,'').trim();
@@ -1065,7 +1068,7 @@ function addRosters(list){
 $('#rosterIn').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{if(addRosters(parseRosterText(r.result,f.name.replace(/\.[^.]+$/,''))))openRosterMgr();};r.readAsText(f);e.target.value='';});
 function openRosterMgr(){
   const a=getRosters();
-  let h=`<h2>球員名單庫</h2><div class="hint">名單存在這台 iPad 裡（不會上傳到網路）。每場比賽在「比賽資訊」選名單，就能直接點選球員。同名名單再匯入會覆蓋。</div>`;
+  let h=`<h2>球員名單庫</h2><div class="hint">名單存在這台 iPad 裡。每場比賽在「比賽資訊」選名單，就能直接點選球員。同名名單再匯入會覆蓋。</div>`;
   if(!a.length)h+=`<p>目前還沒有名單。</p>`;
   a.forEach((r,i)=>{h+=`<div class="rlist"><b>${esc(r.name)}</b>（${r.players.length} 人）　<button class="mbtn red" onclick="delRoster(${i})">刪除</button><div class="pl">${r.players.map(p=>esc((p.no?p.no+' ':'')+p.name)).join('、')}</div></div>`;});
   h+=`<div class="row" style="margin-top:10px"><button class="mbtn" onclick="$('#rosterIn').click()">從檔案匯入</button><button class="mbtn" onclick="pasteRoster()">貼上文字新增</button>${a.length?'<button class="mbtn" onclick="exportRosters()">匯出名單檔</button>':''}</div>

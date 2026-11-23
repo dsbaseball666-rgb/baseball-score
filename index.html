@@ -68,6 +68,9 @@ td.cur{outline:3px solid #f2c14e;outline-offset:-3px}
 .actions .ok{background:var(--acc);color:#fff;border-color:var(--acc)}
 .preview{background:#f7f7f2;border-radius:6px;padding:6px 8px;font-size:13px;color:#333}
 .hint{font-size:12px;color:#777}
+.rpick{max-width:150px}
+.rlist{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;background:#fafafa}
+.rlist .pl{font-size:13px;color:#444;line-height:1.7}
 .info{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;flex:1}
 .info .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 14px}
 .info label{display:flex;flex-direction:column;font-size:12px;color:#555;gap:2px}
@@ -165,10 +168,11 @@ td.cell{cursor:default}
 <div id="printArea"></div>
 <div id="modal" class="modal hidden"><div class="box" id="mbox"></div></div>
 <input type="file" id="fileIn" accept=".json,application/json" style="display:none">
+<input type="file" id="rosterIn" accept=".txt,.csv,.json,text/plain,text/csv,application/json" style="display:none">
 <div id="bootMsg" style="padding:30px;font-size:18px;color:#555">載入中…（若一直停在這裡，請截圖給開發者）</div>
 <script>
 /* 啟動錯誤顯示：用最舊的語法寫，確保任何 iPad 都能把錯誤顯示出來 */
-var APP_VER='1.2';
+var APP_VER='1.3';
 window.onerror=function(msg,src,line,col){
   var d=document.getElementById('bootErr');
   if(!d){d=document.createElement('div');d.id='bootErr';d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:999;background:#fff3f3;border-top:3px solid #d0202b;padding:12px 16px;font-size:15px;color:#900;max-height:40vh;overflow:auto';document.body.appendChild(d);}
@@ -672,6 +676,7 @@ function renderSub(){
   h+=`<div class="row"><span class="lab">球隊</span><select onchange="sm.team=+this.value;renderSub()"><option value="0" ${sm.team===0?'selected':''}>${esc(teamName(0))}</option><option value="1" ${sm.team===1?'selected':''}>${esc(teamName(1))}</option></select></div>`;
   h+=`<div class="row"><span class="lab">打序</span><select onchange="sm.o=+this.value;renderSub()">`+(sm.kind==='P'?`<option value="-1" ${sm.o===-1?'selected':''}>不在打序（DH制）</option>`:'')+Array.from({length:9},(_,o)=>`<option value="${o}" ${sm.o===o?'selected':''}>第${o+1}棒　${esc(pl(curSlot(sm.team,o)))}（${POSN[curSlot(sm.team,o).pos]||''}）</option>`).join('')+`</select></div>`;
   if(sm.kind==='P')h+=`<div class="hint">目前投手：${esc(pl(curPitcher(sm.team)))}</div>`;
+  if(S.teams[sm.team].roster)h+=`<div class="row"><span class="lab">從名單選</span>${rosterSel(sm.team,sm,'pickSub(this.value)')}</div>`;
   h+=`<div class="row"><span class="lab">上場背號</span><input type="text" inputmode="numeric" size="5" value="${esc(sm.no)}" oninput="sm.no=this.value"><span class="lab">姓名</span><input type="text" size="10" value="${esc(sm.name)}" oninput="sm.name=this.value"></div>`;
   if(sm.kind==='DEF')h+=`<div class="row"><span class="lab">新守位</span><select onchange="sm.pos=this.value">`+['','1','2','3','4','5','6','7','8','9','DH'].map(p=>`<option value="${p}" ${sm.pos===p?'selected':''}>${p?p+' '+POSN[p]:'—'}</option>`).join('')+`</select><span class="hint">背號、姓名留空 = 原球員換守位</span></div>`;
   if(sm.kind==='P')h+=`<div class="row"><span class="lab">投球手</span><select onchange="sm.hand=this.value"><option value="R">右投 R</option><option value="L" ${sm.hand==='L'?'selected':''}>左投 L</option></select></div>`;
@@ -962,7 +967,7 @@ function openGameMenu(){
   ]);
 }
 function openFileMenu(){
-  menuModal('檔案',[['匯出備份 (JSON)',`exportJSON()`],['匯入備份',`$('#fileIn').click()`],['列印紀錄表',`printAll()`],['開新比賽',`newGameConfirm()`,'warn']]);
+  menuModal('檔案',[['球員名單庫',`openRosterMgr()`],['匯出備份 (JSON)',`exportJSON()`],['匯入備份',`$('#fileIn').click()`],['列印紀錄表',`printAll()`],['開新比賽',`newGameConfirm()`,'warn']]);
 }
 
 function lineScore(){
@@ -1014,13 +1019,14 @@ function renderInfo(){
   </div><label style="margin-top:8px">備註（全壘打、暫停時間、挑戰結果等）<textarea rows="3" style="width:100%" oninput="S.info.notes=this.value;save()">${esc(I.notes)}</textarea></label>
   <div class="lineups">`;
   [0,1].forEach(t=>{
-    h+=`<div><h3>${t===0?'先攻':'後攻'}：${esc(teamName(t))} 先發名單</h3><table><tr><th>棒</th><th>背號</th><th>姓名</th><th>守位</th></tr>`;
+    const RS=S.teams[t].roster||null,RL=getRosters();
+    h+=`<div><h3>${t===0?'先攻':'後攻'}：${esc(teamName(t))} 先發名單</h3><div class="row" style="margin-bottom:6px"><span class="lab">球員名單</span><select onchange="useRoster(${t},this.value)"><option value="">（不使用／手動輸入）</option>${RL.map((r,i)=>`<option value="${i}" ${S.teams[t].rosterName===r.name?'selected':''}>${esc(r.name)}（${r.players.length}人）</option>`).join('')}</select> <button class="mbtn" onclick="openRosterMgr()">管理名單</button></div><table><tr><th>棒</th>${RS?'<th>選球員</th>':''}<th>背號</th><th>姓名</th><th>守位</th></tr>`;
     for(let o=0;o<9;o++){const p=S.teams[t].lineup[o][0];
-      h+=`<tr><td>${o+1}</td><td><input type="text" size="4" value="${esc(p.no)}" oninput="S.teams[${t}].lineup[${o}][0].no=this.value;save()"></td>
+      h+=`<tr><td>${o+1}</td>${RS?`<td>${rosterSel(t,p,`pickLU(${t},${o},this.value)`)}</td>`:''}<td><input type="text" size="4" inputmode="numeric" value="${esc(p.no)}" oninput="noInput(${t},S.teams[${t}].lineup[${o}][0],this)"></td>
       <td><input type="text" size="10" value="${esc(p.name)}" oninput="S.teams[${t}].lineup[${o}][0].name=this.value;save()"></td>
       <td><select onchange="S.teams[${t}].lineup[${o}][0].pos=this.value;save()">`+['','1','2','3','4','5','6','7','8','9','DH'].map(v=>`<option value="${v}" ${String(p.pos)===v?'selected':''}>${v?v+' '+POSN[v]:'—'}</option>`).join('')+`</select></td></tr>`;}
     const sp=S.teams[t].pitchers[0];
-    h+=`<tr><td>先發投手</td><td><input type="text" size="4" value="${esc(sp.no)}" oninput="S.teams[${t}].pitchers[0].no=this.value;save()"></td>
+    h+=`<tr><td>先發投手</td>${RS?`<td>${rosterSel(t,sp,`pickSP(${t},this.value)`)}</td>`:''}<td><input type="text" size="4" inputmode="numeric" value="${esc(sp.no)}" oninput="noInput(${t},S.teams[${t}].pitchers[0],this)"></td>
     <td><input type="text" size="10" value="${esc(sp.name)}" oninput="S.teams[${t}].pitchers[0].name=this.value;save()"></td>
     <td><select onchange="S.teams[${t}].pitchers[0].hand=this.value;save()"><option value="R">右投</option><option value="L" ${sp.hand==='L'?'selected':''}>左投</option></select></td></tr></table>
     <div class="hint">若守位選 1（投手在打序內），先發投手會自動帶入該棒資料。</div></div>`;
@@ -1028,6 +1034,67 @@ function renderInfo(){
   h+=`</div><p><button class="mbtn" onclick="syncPitchers()">由打序中的投手帶入先發投手</button>　<button class="mbtn on" onclick="view='sheet';render()">開始紀錄 →</button></p></div>`;
   $('#app').innerHTML=h;
 }
+/* ---------------- 球員名單庫（只存在這台 iPad，不會上傳） ---------------- */
+const RKEY='waseda-rosters-v1';
+function getRosters(){try{const a=JSON.parse(localStorage.getItem(RKEY)||'[]');return Array.isArray(a)?a:[];}catch(e){return [];}}
+function setRosters(a){try{localStorage.setItem(RKEY,JSON.stringify(a));}catch(e){alert('名單無法儲存：'+e.message);}}
+function parseRosterText(txt,defName){
+  txt=String(txt).replace(/^﻿/,'').trim();
+  if(/^[\[{]/.test(txt)){try{let j=JSON.parse(txt);if(!Array.isArray(j))j=[j];return j.filter(r=>r&&Array.isArray(r.players)).map(r=>({name:String(r.name||defName),players:r.players.map(p=>({no:String(p.no||''),name:String(p.name||'')})).filter(p=>p.no||p.name)}));}catch(e){}}
+  const out=[];let cur=null;
+  txt.replace(/\r/g,'').split('\n').forEach(line=>{
+    let s=line.trim();if(!s)return;
+    const h=s.match(/^(?:#+\s*|【)(.+?)】?$/);
+    if(h){cur={name:h[1].trim(),players:[]};out.push(cur);return;}
+    s=s.replace(/背號|號/g,' ').replace(/[,，、;；|\t]/g,' ').replace(/\s+/g,' ').trim();
+    if(!/\d/.test(s)&&/姓名/.test(s))return; // 標題列
+    let m=s.match(/^(\d{1,3})\s*(.*)$/),no='',name=s;
+    if(m){no=m[1];name=m[2];}else if((m=s.match(/^(.+?)\s*(\d{1,3})$/))){name=m[1];no=m[2];}
+    name=name.trim();if(!no&&!name)return;
+    if(!cur){cur={name:defName,players:[]};out.push(cur);}
+    cur.players.push({no,name});
+  });
+  return out.filter(r=>r.players.length);
+}
+function addRosters(list){
+  if(!list.length){alert('沒有讀到球員。格式：每行「背號 姓名」，例如「01 王小明」。');return false;}
+  const a=getRosters();
+  list.forEach(r=>{const i=a.findIndex(x=>x.name===r.name);if(i>=0)a[i]=r;else a.push(r);});
+  setRosters(a);alert('已匯入：\n'+list.map(r=>r.name+'（'+r.players.length+' 人）').join('\n'));return true;
+}
+$('#rosterIn').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{if(addRosters(parseRosterText(r.result,f.name.replace(/\.[^.]+$/,''))))openRosterMgr();};r.readAsText(f);e.target.value='';});
+function openRosterMgr(){
+  const a=getRosters();
+  let h=`<h2>球員名單庫</h2><div class="hint">名單存在這台 iPad 裡（不會上傳到網路）。每場比賽在「比賽資訊」選名單，就能直接點選球員。同名名單再匯入會覆蓋。</div>`;
+  if(!a.length)h+=`<p>目前還沒有名單。</p>`;
+  a.forEach((r,i)=>{h+=`<div class="rlist"><b>${esc(r.name)}</b>（${r.players.length} 人）　<button class="mbtn red" onclick="delRoster(${i})">刪除</button><div class="pl">${r.players.map(p=>esc((p.no?p.no+' ':'')+p.name)).join('、')}</div></div>`;});
+  h+=`<div class="row" style="margin-top:10px"><button class="mbtn" onclick="$('#rosterIn').click()">從檔案匯入</button><button class="mbtn" onclick="pasteRoster()">貼上文字新增</button>${a.length?'<button class="mbtn" onclick="exportRosters()">匯出名單檔</button>':''}</div>
+  <div class="actions"><button class="ok" onclick="closeModal();render()">完成</button></div>`;
+  openModal(h,()=>render());
+}
+function pasteRoster(){
+  $('#mbox').innerHTML=`<h2>貼上球員名單</h2><div class="row"><span class="lab">名單名稱</span><input type="text" id="rpName" size="16" placeholder="例：東勢紅龍"></div>
+  <textarea id="rpTxt" rows="12" style="width:100%;font-size:16px" placeholder="每行一位：背號 姓名&#10;01 王小明&#10;02 李大華&#10;&#10;一次貼多份名單：用「# 名單名稱」分段"></textarea>
+  <div class="actions"><button onclick="openRosterMgr()">返回</button><button class="ok" onclick="savePaste()">儲存</button></div>`;
+}
+function savePaste(){const n=$('#rpName').value.trim()||'我的球隊';if(addRosters(parseRosterText($('#rpTxt').value,n)))openRosterMgr();}
+function delRoster(i){const a=getRosters();if(!confirm('刪除名單「'+a[i].name+'」？（已記錄的比賽不受影響）'))return;a.splice(i,1);setRosters(a);openRosterMgr();}
+async function exportRosters(){
+  const txt=getRosters().map(r=>'# '+r.name+'\n'+r.players.map(p=>(p.no?p.no+' ':'')+p.name).join('\n')).join('\n\n');
+  const blob=new Blob([txt],{type:'text/plain'}),name='球員名單.txt';
+  try{const file=new File([blob],name,{type:'text/plain'});if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();
+}
+function useRoster(t,i){const r=getRosters()[i];if(r){S.teams[t].roster=r.players.map(p=>({no:p.no,name:p.name}));S.teams[t].rosterName=r.name;}else{delete S.teams[t].roster;delete S.teams[t].rosterName;}save();render();}
+function rosterSel(t,cur,onch){
+  const R=S.teams[t].roster||[];const used=new Set();S.teams[t].lineup.forEach(a=>a.forEach(p=>used.add(p.no+'|'+p.name)));
+  const ci=R.findIndex(p=>p.no===cur.no&&p.name===cur.name);
+  return `<select class="rpick" onchange="${onch}"><option value="">— 選球員 —</option>${R.map((p,i)=>`<option value="${i}" ${i===ci?'selected':''}>${esc((p.no?p.no+' ':'')+p.name)}${i!==ci&&used.has(p.no+'|'+p.name)?' ✓':''}</option>`).join('')}</select>`;
+}
+function pickLU(t,o,i){const p=S.teams[t].roster[i],x=S.teams[t].lineup[o][0];if(p){x.no=p.no;x.name=p.name;}else{x.no='';x.name='';}save();render();}
+function pickSP(t,i){const p=S.teams[t].roster[i],x=S.teams[t].pitchers[0];if(p){x.no=p.no;x.name=p.name;}save();render();}
+function pickSub(i){const p=S.teams[sm.team].roster[i];if(p){sm.no=p.no;sm.name=p.name;}renderSub();}
+function noInput(t,obj,el){obj.no=el.value;const R=S.teams[t].roster;if(R){const v=el.value.trim();const p=v&&R.find(q=>q.no===v||(/^\d+$/.test(v)&&+q.no===+v));if(p){obj.name=p.name;const n=el.closest('tr').querySelectorAll('input[type=text]')[1];if(n)n.value=p.name;}}save();}
 function syncPitchers(){[0,1].forEach(t=>{const LU=S.teams[t].lineup;for(let o=0;o<9;o++){const p=LU[o][0];if(String(p.pos)==='1'){const sp=S.teams[t].pitchers[0];if(!sp.no)sp.no=p.no;if(!sp.name)sp.name=p.name;}}});save();render();}
 
 /* ---------------- 其他 ---------------- */

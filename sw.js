@@ -1,7 +1,7 @@
 // 離線快取
 // 開啟頁面：先試網路（最多等 3 秒），失敗或太慢就用 iPad 裡的備份 → 球場沒網路也能開
 // 圖示等其他檔案：直接用備份，背景更新
-const CACHE = 'waseda-scorebook-v4';
+const CACHE = 'waseda-scorebook-v5';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

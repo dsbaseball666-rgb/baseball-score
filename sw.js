@@ -1,11 +1,13 @@
 // 離線快取
 // 開啟頁面：先試網路（最多等 3 秒），失敗或太慢就用 iPad 裡的備份 → 球場沒網路也能開
 // 圖示等其他檔案：直接用備份，背景更新
-const CACHE = 'waseda-scorebook-v3';
+const CACHE = 'waseda-scorebook-v4';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE)
+    .then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
@@ -27,7 +29,7 @@ self.addEventListener('fetch', e => {
   if (req.mode === 'navigate') {
     e.respondWith((async () => {
       const cache = await caches.open(CACHE);
-      const net = fetch(req).then(async r => {
+      const net = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then(async r => {
         if (r && r.ok) { const c = await clean(r.clone()); await cache.put('./index.html', c); }
         return r;
       }).catch(() => null);
@@ -41,7 +43,7 @@ self.addEventListener('fetch', e => {
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req, { ignoreSearch: true });
-    const net = fetch(req).then(async r => { if (r && r.ok) await cache.put(req, await clean(r.clone())); return r; }).catch(() => null);
+    const net = fetch(req, { cache: 'no-cache' }).then(async r => { if (r && r.ok) await cache.put(req, await clean(r.clone())); return r; }).catch(() => null);
     return clean(cached || (await net) || Response.error());
   })());
 });

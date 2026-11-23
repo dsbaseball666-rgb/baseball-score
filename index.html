@@ -165,6 +165,16 @@ td.cell{cursor:default}
 <div id="printArea"></div>
 <div id="modal" class="modal hidden"><div class="box" id="mbox"></div></div>
 <input type="file" id="fileIn" accept=".json,application/json" style="display:none">
+<div id="bootMsg" style="padding:30px;font-size:18px;color:#555">載入中…（若一直停在這裡，請截圖給開發者）</div>
+<script>
+/* 啟動錯誤顯示：用最舊的語法寫，確保任何 iPad 都能把錯誤顯示出來 */
+var APP_VER='1.2';
+window.onerror=function(msg,src,line,col){
+  var d=document.getElementById('bootErr');
+  if(!d){d=document.createElement('div');d.id='bootErr';d.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:999;background:#fff3f3;border-top:3px solid #d0202b;padding:12px 16px;font-size:15px;color:#900;max-height:40vh;overflow:auto';document.body.appendChild(d);}
+  d.innerHTML+='<div>⚠ 程式錯誤（版本 '+APP_VER+'）：'+String(msg).replace(/</g,'&lt;')+'　第 '+line+' 行</div>';
+};
+</script>
 <script>
 'use strict';
 /* =========================================================
@@ -177,7 +187,7 @@ const SUP=['⁰','¹','²','³','⁴','⁵','⁶','⁷','⁸','⁹'];
 const POSN={'1':'投','2':'捕','3':'一','4':'二','5':'三','6':'游','7':'左','8':'中','9':'右','DH':'指','PH':'代打','PR':'代跑','':''};
 const KEY='waseda-scorebook-v1';
 const $=s=>document.querySelector(s);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sup=n=>String(n).split('').map(d=>SUP[+d]||d).join('');
 const nowHM=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
 
@@ -856,7 +866,7 @@ function cellSVG(c,cur){
 /* ---------------- 畫面 ---------------- */
 function render(){renderHeader();if(view==='info')renderInfo();else if(view==='stats')renderStats();else renderSheetView();}
 function renderHeader(){
-  $('#hdr').innerHTML=`<h1>⚾ 棒球紀錄・早稻田式</h1>
+  $('#hdr').innerHTML=`<h1>⚾ 棒球紀錄・早稻田式 <small style="font-weight:normal;opacity:.6;font-size:11px">v${APP_VER}</small></h1>
   <button class="${view==='info'?'on':''}" onclick="view='info';render()">比賽資訊／名單</button>
   <button class="${view==='sheet'?'on':''}" onclick="view='sheet';render()">紀錄表</button>
   <button class="${view==='stats'?'on':''}" onclick="view='stats';render()">統計／驗算</button>
@@ -1045,7 +1055,8 @@ function printAll(){
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();undo();}if(e.key==='Escape'&&!$('#modal').classList.contains('hidden'))cancelModal();});
 
 if(!load()){S=newGame();view='info';}
-render();
+try{render();}catch(e){console.error(e);alert('畫面載入錯誤（版本 '+APP_VER+'）：'+e.message+'\n\n可到「☰ 檔案」匯出備份。');}
+{const bm=document.getElementById('bootMsg');if(bm)bm.remove();}
 if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 </script>
